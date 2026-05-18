@@ -31,7 +31,7 @@ export default function Page() {
 
   const buscarDados = async () => {
     try {
-      const res = await fetch(`${API}/dispositivo`)
+      const res = await fetch(`${API}/iot`)
       const data = await res.json()
       setDevice(data)
       if (!editMode) setTempSensores(data.sensores)

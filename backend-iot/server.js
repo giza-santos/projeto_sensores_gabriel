@@ -1,123 +1,164 @@
-const express = require("express")
-const cors = require("cors")
+const express = require('express')
+const cors = require('cors')
+const api = express()
 
-const app = express()
+//Middlewares
+api.use(express.json())
+api.use(cors())
 
-app.use(cors())
-app.use(express.json())
+const dados = []
+const iot_data = []
+const devices = []
+let id = 0;
 
-let dispositivo = {
-  id: "DEV-0001",
-  status: "online",
-  rele: false,
-  sensores: {
-    temperatura: 25,
-    pressao: 1.2,
-    umidade: 60,
-    presenca: true
-  }
-}
 
-// ======================
-// GET DISPOSITIVO
-// ======================
-app.get("/dispositivo", (req, res) => {
-  res.json(dispositivo)
+
+//Rotas
+api.get('/usuarios', (req, res)=>{
+    let users = dados;
+
+    res.status(200).send(users)
 })
 
-// ======================
-// CONECTAR
-// ======================
-app.post("/conectar", (req, res) => {
-  dispositivo.status = "online"
+//Rota de IOT
+api.get('/iot', (req, res) => {
 
-  res.json({
-    msg: "Dispositivo conectado",
-    status: dispositivo.status
-  })
+    if(iot_data.length === 0){
+        return res.status(200).send({
+            id: "ESP32-01",
+            status: "offline",
+            rele: false,
+            sensores: {
+                temperatura: 0,
+                pressao: 0,
+                umidade: 0,
+                presenca: false
+            }
+        })
+    }
+
+    const ultimo = iot_data[iot_data.length - 1]
+
+    const resposta = {
+        id: ultimo.id,
+        status: "online",
+        rele: ultimo.trava_seguranca,
+        sensores: {
+            temperatura: ultimo.temperatura,
+            pressao: ultimo.pressao,
+            umidade: ultimo.umidade,
+            presenca: ultimo.sensor_presenca
+        }
+    }
+
+    res.status(200).send(resposta)
+})
+//Rota por sensor
+api.get('/sensor/:id', (req, res)=>{
+    let sensor_data = iot_data[req.params.id]
+
+    res.status(201).send(sensor_data)
 })
 
-// ======================
-// DESCONECTAR
-// ======================
-app.post("/desconectar", (req, res) => {
-  dispositivo.status = "offline"
+api.get('/devices',(req, res)=>{
 
-  res.json({
-    msg: "Dispositivo desconectado",
-    status: dispositivo.status
-  })
+    res.status(200).send(devices)
 })
 
-// ======================
-// CONTROLAR RELÉ
-// ======================
-app.post("/rele", (req, res) => {
-  const { comando } = req.body
 
-  if (comando === "liberar") {
-    dispositivo.rele = true
+api.post('/newData', (req, res)=>{
+        const { 
+            temperatura,
+            pressao,
+            umidade,
+            sensor_presenca,
+            trava_seguranca, } = req.body
 
-    return res.json({
-      msg: "Relé liberado",
-      rele: true
+            id = id+1;
+
+        if(req.body === null){
+            return res.status(400).send("Dados não encontrados")
+        }
+        else{
+            const newData = {
+            id: id,
+            temperatura,
+            pressao,
+            umidade,
+            sensor_presenca,
+            trava_seguranca,
+        }
+        iot_data.push(newData)
+        return res.status(201).send({ message: 'Dados recebidos com sucesso!' })
+        }
     })
-  }
 
-  if (comando === "travar") {
-    dispositivo.rele = false
+api.put('/sensor/:id', (req,res)=>{
+    const id = req.params.id
+    const newBody = req.body
+    
+    const index = iot_data.findIndex(p => p.id=== parseInt(id))
+    
+    if(index != -1){
+        iot_data[index] = {id: parseInt(id), ...newBody}
+        return res.status(200).send({
+            "msg":"Dados do sensor atualizados!"
+        })
+    }
+    else{
+        return res.status(500).send({
+            "msg":"Erro ao atualizar o sensor!"
+        })
+    }
+})
 
-    return res.json({
-      msg: "Relé travado",
-      rele: false
+api.post('/rele', (req, res) => {
+    res.status(200).send({
+        msg: "Relé alterado"
     })
-  }
-
-  res.status(400).json({
-    msg: "Comando inválido"
-  })
 })
 
-// ======================
-// ATUALIZAR SENSORES
-// ======================
-app.put("/sensores", (req, res) => {
-  const {
-    temperatura,
-    pressao,
-    umidade,
-    presenca
-  } = req.body
-
-  dispositivo.sensores = {
-    temperatura,
-    pressao,
-    umidade,
-    presenca
-  }
-
-  res.json({
-    msg: "Sensores atualizados",
-    sensores: dispositivo.sensores
-  })
+api.post('/conectar', (req, res) => {
+    res.status(200).send({
+        status: "online"
+    })
 })
 
-// ======================
-// RESETAR SENSORES
-// ======================
-app.delete("/sensores", (req, res) => {
-  dispositivo.sensores = {
-    temperatura: 0,
-    pressao: 0,
-    umidade: 0,
-    presenca: false
-  }
-
-  res.json({
-    msg: "Sensores resetados"
-  })
+api.post('/desconectar', (req, res) => {
+    res.status(200).send({
+        status: "offline"
+    })
 })
 
-app.listen(8080, () => {
-  console.log("Servidor rodando na porta 8080")
+api.put('/sensores', (req, res) => {
+
+    const {
+        temperatura,
+        pressao,
+        umidade,
+        presenca
+    } = req.body
+
+    if(iot_data.length === 0){
+        return res.status(404).send({
+            msg: "Nenhum sensor encontrado"
+        })
+    }
+
+    const ultimo = iot_data[iot_data.length - 1]
+
+    ultimo.temperatura = temperatura
+    ultimo.pressao = pressao
+    ultimo.umidade = umidade
+    ultimo.sensor_presenca = presenca
+
+    res.status(200).send({
+        msg: "Sensores atualizados"
+    })
+})
+
+
+const porta = 8080;
+api.listen(porta, ()=>{
+    console.log(`API rodando na porta ${porta}`)
 })
